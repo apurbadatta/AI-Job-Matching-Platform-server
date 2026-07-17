@@ -32,18 +32,18 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// Protected route examples
-import { isEmployer, isCandidate, isAdmin } from "./middleware/auth";
-import { AuthRequest } from "./middleware/auth";
 import jobsRouter from "./routes/jobs";
+import reviewsRouter from "./routes/reviews";
+import aiRouter from "./routes/ai";
 
 // Jobs routes (public read, protected write)
 app.use("/api/jobs", jobsRouter);
 
-// Employer-only routes
-app.get("/api/jobs/manage", isEmployer, (req: AuthRequest, res) => {
-  res.json({ message: "Employer dashboard", user: req.user });
-});
+// Reviews routes
+app.use("/api/reviews", reviewsRouter);
+
+// AI routes
+app.use("/api/ai", aiRouter);
 
 // Get current session
 app.get("/api/auth/session", async (req, res) => {
