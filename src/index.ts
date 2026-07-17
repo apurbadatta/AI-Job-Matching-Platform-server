@@ -35,24 +35,14 @@ app.get("/api/health", (_req, res) => {
 // Protected route examples
 import { isEmployer, isCandidate, isAdmin } from "./middleware/auth";
 import { AuthRequest } from "./middleware/auth";
+import jobsRouter from "./routes/jobs";
+
+// Jobs routes (public read, protected write)
+app.use("/api/jobs", jobsRouter);
 
 // Employer-only routes
 app.get("/api/jobs/manage", isEmployer, (req: AuthRequest, res) => {
   res.json({ message: "Employer dashboard", user: req.user });
-});
-
-app.post("/api/jobs/add", isEmployer, (req: AuthRequest, res) => {
-  res.json({ message: "Job added", user: req.user });
-});
-
-// Candidate-only routes
-app.get("/api/dashboard", isCandidate, (req: AuthRequest, res) => {
-  res.json({ message: "Candidate dashboard", user: req.user });
-});
-
-// Admin-only routes
-app.get("/api/admin/*", isAdmin, (req: AuthRequest, res) => {
-  res.json({ message: "Admin panel", user: req.user });
 });
 
 // Get current session
