@@ -87,7 +87,11 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
-  trustedOrigins: [process.env.CLIENT_URL || "http://localhost:3000"],
+  trustedOrigins: [
+    process.env.CLIENT_URL || "http://localhost:3000",
+    "https://ai-job-matching-platform-three.vercel.app",
+    "http://localhost:3000",
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;
