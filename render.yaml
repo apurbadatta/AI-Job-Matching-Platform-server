@@ -14,9 +14,11 @@ services:
         value: 5000
       - key: CLIENT_URL
         sync: false
-      - key: MONGO_URI
+      - key: BETTER_AUTH_URL
         sync: false
       - key: BETTER_AUTH_SECRET
+        sync: false
+      - key: MONGO_URI
         sync: false
       - key: GEMINI_API_KEY
         sync: false

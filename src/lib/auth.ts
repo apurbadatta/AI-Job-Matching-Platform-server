@@ -1,10 +1,13 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { MongoClient, Db } from "mongodb";
-import dotenv from "dotenv";
-import path from "path";
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+// Only load .env locally (Render/Vercel set env vars directly)
+if (process.env.NODE_ENV !== "production") {
+  const dotenv = require("dotenv");
+  const path = require("path");
+  dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+}
 
 let client: MongoClient | undefined;
 let db: Db | undefined;
