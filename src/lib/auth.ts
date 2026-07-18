@@ -92,6 +92,12 @@ export const auth = betterAuth({
     "https://ai-job-matching-platform-three.vercel.app",
     "http://localhost:3000",
   ],
+  advanced: {
+    defaultCookieAttributes: {
+      sameSite: "none",
+      secure: true,
+    },
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;

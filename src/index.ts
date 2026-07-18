@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5000;
 // Connect to MongoDB
 connectDB();
 
-// CORS - must come before Better Auth handler
+// CORS - must come before all other middleware
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "https://ai-job-matching-platform-three.vercel.app",
@@ -38,16 +38,41 @@ app.use(
   })
 );
 
-// Better Auth handler - must come before express.json()
-app.all("/api/auth/{*path}", toNodeHandler(auth));
-
-// JSON parsing for non-auth, non-webhook routes
-app.use(express.json({ limit: "10mb" }));
-
 // Health check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
+
+// Custom session endpoint (must come BEFORE Better Auth catch-all)
+app.get("/api/auth/session", async (req, res) => {
+  try {
+    const result = await auth.api.getSession({
+      headers: req.headers as any,
+    });
+    if (result?.user) {
+      const db = mongoose.connection.db;
+      if (db) {
+        const freshUser = await db.collection("user").findOne(
+          { _id: new mongoose.Types.ObjectId(result.user.id) },
+          { projection: { _id: 0, name: 1, email: 1, role: 1, image: 1, companyName: 1, skills: 1, experience: 1, resumeUrl: 1, companyLogo: 1, companyDescription: 1, status: 1, isVerified: 1, jobPostCount: 1, "subscription.plan": 1, "subscription.status": 1 } }
+        );
+        if (freshUser) {
+          result.user = { ...result.user, ...freshUser } as any;
+        }
+      }
+    }
+    res.json(result || { user: null, session: null });
+  } catch (error) {
+    res.json({ user: null, session: null });
+  }
+});
+
+// Better Auth handler (catches all other /api/auth/* routes)
+// Must come BEFORE express.json() because Better Auth needs raw request body
+app.all("/api/auth/{*path}", toNodeHandler(auth));
+
+// JSON parsing for non-auth, non-webhook routes
+app.use(express.json({ limit: "10mb" }));
 
 import jobsRouter from "./routes/jobs";
 import reviewsRouter from "./routes/reviews";
@@ -78,26 +103,6 @@ app.use("/api/contact", contactRouter);
 // Blog routes
 app.use("/api/blog", blogRouter);
 
-// Get current session (enriched with fresh DB data)
-app.get("/api/auth/session", async (req, res) => {
-  const result = await auth.api.getSession({
-    headers: req.headers as any,
-  });
-  if (result?.user) {
-    const db = mongoose.connection.db;
-    if (db) {
-      const freshUser = await db.collection("user").findOne(
-        { _id: new mongoose.Types.ObjectId(result.user.id) },
-        { projection: { _id: 0, name: 1, email: 1, role: 1, image: 1, companyName: 1, skills: 1, experience: 1, resumeUrl: 1, companyLogo: 1, companyDescription: 1, status: 1, isVerified: 1, jobPostCount: 1, "subscription.plan": 1, "subscription.status": 1 } }
-      );
-      if (freshUser) {
-        result.user = { ...result.user, ...freshUser } as any;
-      }
-    }
-  }
-  res.json(result || { user: null, session: null });
-});
-
 // Profile update
 import { isAuthenticated, hasRole, AuthRequest } from "./middleware/auth";
 import { User } from "./models/User";
@@ -124,7 +129,7 @@ app.put("/api/profile", isAuthenticated, async (req: AuthRequest, res: express.R
 });
 
 // Employer setup after registration (candidate only — sets role + companyName)
-app.post("/api/auth/setup-employer", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: express.Response) => {
+app.post("/api/setup-employer", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: express.Response) => {
   try {
     const { companyName } = req.body;
     if (!companyName || typeof companyName !== "string" || !companyName.trim()) {
