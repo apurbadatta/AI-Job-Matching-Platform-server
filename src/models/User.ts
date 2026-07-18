@@ -48,7 +48,7 @@ const userSchema = new Schema<IUser>(
       cancelAtPeriodEnd: { type: Boolean, default: false },
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "user" }
 );
 
 export const User = mongoose.models.User || mongoose.model<IUser>("User", userSchema);

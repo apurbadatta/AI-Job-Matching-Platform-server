@@ -11,6 +11,10 @@ export const PRICE_IDS = {
   business_monthly: process.env.STRIPE_BUSINESS_PRICE_ID || "price_business_monthly_placeholder",
 };
 
+if (!process.env.STRIPE_PRO_PRICE_ID || !process.env.STRIPE_BUSINESS_PRICE_ID) {
+  console.warn("WARNING: Stripe price IDs not configured. Set STRIPE_PRO_PRICE_ID and STRIPE_BUSINESS_PRICE_ID in .env");
+}
+
 export const PLAN_DETAILS = {
   free: {
     name: "Free",

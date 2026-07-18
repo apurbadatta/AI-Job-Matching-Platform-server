@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import mongoose from "mongoose";
 import { Review } from "../models/Review";
 import { isAuthenticated, AuthRequest } from "../middleware/auth";
 
@@ -26,7 +27,7 @@ router.get("/company/:employerId", async (req: Request, res: Response) => {
         .lean(),
       Review.countDocuments({ employer: req.params.employerId }),
       Review.aggregate([
-        { $match: { employer: req.params.employerId as any } },
+        { $match: { employer: new mongoose.Types.ObjectId(req.params.employerId as string) } },
         {
           $group: {
             _id: null,

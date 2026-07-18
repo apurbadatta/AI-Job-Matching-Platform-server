@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { isAuthenticated, AuthRequest, hasRole } from "../middleware/auth";
 import mongoose from "mongoose";
+import { stripe } from "../lib/stripe";
 
 const router = Router();
 
@@ -60,13 +61,20 @@ router.get("/users", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Suspend user
+// Suspend user (prevent suspending other admins)
 router.post("/users/:id/suspend", async (req: AuthRequest, res: Response) => {
   try {
     const db = mongoose.connection.db;
     if (!db) return res.status(500).json({ error: "Database not connected" });
 
     const id = getId(req.params.id);
+    const targetUser = await db.collection("user").findOne({ _id: toObjectId(id) });
+    if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+    if ((targetUser as any).role === "admin" && (targetUser as any)._id.toString() !== req.user!.id) {
+      return res.status(403).json({ error: "Cannot suspend other admin users" });
+    }
+
     await db.collection("user").updateOne(
       { _id: toObjectId(id) },
       { $set: { status: "suspended", updatedAt: new Date() } }
@@ -121,6 +129,34 @@ router.post("/users/:id/verify", async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Change user role
+router.post("/users/:id/role", async (req: AuthRequest, res: Response) => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return res.status(500).json({ error: "Database not connected" });
+
+    const id = getId(req.params.id);
+    const { role } = req.body;
+
+    if (!role || !["candidate", "employer", "admin"].includes(role)) {
+      return res.status(400).json({ error: "Invalid role. Must be 'candidate', 'employer', or 'admin'" });
+    }
+
+    const user = await db.collection("user").findOne({ _id: toObjectId(id) });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    await db.collection("user").updateOne(
+      { _id: toObjectId(id) },
+      { $set: { role, updatedAt: new Date() } }
+    );
+
+    res.json({ message: `User role changed to ${role}`, role });
+  } catch (error) {
+    console.error("Error changing role:", error);
+    res.status(500).json({ error: "Failed to change role" });
+  }
+});
+
 // ==================== JOBS ====================
 
 // Get all jobs (admin view - all statuses)
@@ -145,13 +181,13 @@ router.get("/jobs", async (req: AuthRequest, res: Response) => {
     }
 
     const [jobs, total] = await Promise.all([
-      db.collection("job")
+      db.collection("jobs")
         .find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .toArray(),
-      db.collection("job").countDocuments(filter),
+      db.collection("jobs").countDocuments(filter),
     ]);
 
     // Manually populate postedBy
@@ -189,7 +225,7 @@ router.post("/jobs/:id/approve", async (req: AuthRequest, res: Response) => {
     const db = mongoose.connection.db;
     if (!db) return res.status(500).json({ error: "Database not connected" });
 
-    await db.collection("job").updateOne(
+    await db.collection("jobs").updateOne(
       { _id: toObjectId(getId(req.params.id)) },
       { $set: { status: "approved", updatedAt: new Date() } }
     );
@@ -207,7 +243,7 @@ router.post("/jobs/:id/reject", async (req: AuthRequest, res: Response) => {
     const db = mongoose.connection.db;
     if (!db) return res.status(500).json({ error: "Database not connected" });
 
-    await db.collection("job").updateOne(
+    await db.collection("jobs").updateOne(
       { _id: toObjectId(getId(req.params.id)) },
       { $set: { status: "rejected", updatedAt: new Date() } }
     );
@@ -219,18 +255,58 @@ router.post("/jobs/:id/reject", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Delete job
+// Delete job (also decrement jobPostCount)
 router.delete("/jobs/:id", async (req: AuthRequest, res: Response) => {
   try {
     const db = mongoose.connection.db;
     if (!db) return res.status(500).json({ error: "Database not connected" });
 
-    await db.collection("job").deleteOne({ _id: toObjectId(getId(req.params.id)) });
+    const job = await db.collection("jobs").findOne({ _id: toObjectId(getId(req.params.id)) });
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    await db.collection("jobs").deleteOne({ _id: toObjectId(getId(req.params.id)) });
+
+    if ((job as any).postedBy) {
+      await db.collection("user").updateOne(
+        { _id: toObjectId((job as any).postedBy.toString()) },
+        { $inc: { jobPostCount: -1 } }
+      );
+    }
 
     res.json({ message: "Job deleted" });
   } catch (error) {
     console.error("Error deleting job:", error);
     res.status(500).json({ error: "Failed to delete job" });
+  }
+});
+
+// Edit job
+router.put("/jobs/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return res.status(500).json({ error: "Database not connected" });
+
+    const { title, shortDescription, fullDescription, category, location, salary, jobType, deadline } = req.body;
+
+    const updateData: any = { updatedAt: new Date() };
+    if (title) updateData.title = title;
+    if (shortDescription) updateData.shortDescription = shortDescription;
+    if (fullDescription) updateData.fullDescription = fullDescription;
+    if (category) updateData.category = category;
+    if (location) updateData.location = location;
+    if (salary) updateData.salary = salary;
+    if (jobType) updateData.jobType = jobType;
+    if (deadline) updateData.deadline = deadline;
+
+    await db.collection("jobs").updateOne(
+      { _id: toObjectId(getId(req.params.id)) },
+      { $set: updateData }
+    );
+
+    res.json({ message: "Job updated" });
+  } catch (error) {
+    console.error("Error editing job:", error);
+    res.status(500).json({ error: "Failed to edit job" });
   }
 });
 
@@ -241,11 +317,11 @@ router.post("/jobs/:id/feature", async (req: AuthRequest, res: Response) => {
     if (!db) return res.status(500).json({ error: "Database not connected" });
 
     const id = getId(req.params.id);
-    const job = await db.collection("job").findOne({ _id: toObjectId(id) });
+    const job = await db.collection("jobs").findOne({ _id: toObjectId(id) });
     if (!job) return res.status(404).json({ error: "Job not found" });
 
     const currentFeatured = (job as any).isFeatured || false;
-    await db.collection("job").updateOne(
+    await db.collection("jobs").updateOne(
       { _id: toObjectId(id) },
       { $set: { isFeatured: !currentFeatured, updatedAt: new Date() } }
     );
@@ -258,6 +334,136 @@ router.post("/jobs/:id/feature", async (req: AuthRequest, res: Response) => {
 });
 
 // ==================== ANALYTICS ====================
+
+// All subscriptions / payments
+router.get("/payments", async (req: AuthRequest, res: Response) => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return res.status(500).json({ error: "Database not connected" });
+
+    const { page = "1", limit = "20", plan = "" } = req.query;
+    const pageNum = Math.max(1, parseInt(page as string, 10));
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
+    const skip = (pageNum - 1) * pageSize;
+
+    const filter: any = {
+      "subscription.plan": { $in: ["pro", "business"] },
+    };
+    if (plan && typeof plan === "string" && ["pro", "business"].includes(plan)) {
+      filter["subscription.plan"] = plan;
+    }
+
+    const [users, total] = await Promise.all([
+      db.collection("user")
+        .find(filter)
+        .project({
+          name: 1,
+          email: 1,
+          role: 1,
+          "subscription.plan": 1,
+          "subscription.status": 1,
+          "subscription.currentPeriodEnd": 1,
+          "subscription.stripeCustomerId": 1,
+          "subscription.stripeSubscriptionId": 1,
+          "subscription.updatedAt": 1,
+          createdAt: 1,
+        })
+        .sort({ "subscription.updatedAt": -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .toArray(),
+      db.collection("user").countDocuments(filter),
+    ]);
+
+    const enriched = users.map((u: any) => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      subscription: u.subscription || {},
+      createdAt: u.createdAt,
+    }));
+
+    res.json({
+      payments: enriched,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        total,
+        pages: Math.ceil(total / pageSize),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
+// ==================== ANALYTICS ====================
+
+// All invoices from Stripe (all users)
+router.get("/invoices", async (req: AuthRequest, res: Response) => {
+  try {
+    if (!stripe) {
+      return res.json({ invoices: [], totalRevenue: 0 });
+    }
+
+    const db = mongoose.connection.db;
+    if (!db) return res.status(500).json({ error: "Database not connected" });
+
+    // Get all users with Stripe customer IDs
+    const usersWithStripe = await db.collection("user")
+      .find({ "subscription.stripeCustomerId": { $ne: null } })
+      .project({ name: 1, email: 1, "subscription.stripeCustomerId": 1 })
+      .toArray();
+
+    const allInvoices: any[] = [];
+    let totalRevenue = 0;
+
+    for (const user of usersWithStripe) {
+      const customerId = (user as any).subscription?.stripeCustomerId;
+      if (!customerId) continue;
+
+      try {
+        const invoices = await stripe.invoices.list({
+          customer: customerId,
+          limit: 100,
+        });
+
+        for (const inv of invoices.data) {
+          allInvoices.push({
+            id: inv.id,
+            number: inv.number,
+            status: inv.status,
+            amount: inv.amount_paid,
+            currency: inv.currency,
+            date: inv.created,
+            invoiceUrl: inv.hosted_invoice_url,
+            pdfUrl: inv.invoice_pdf,
+            description: inv.description || "Subscription payment",
+            customerName: (user as any).name,
+            customerEmail: (user as any).email,
+            userId: user._id,
+          });
+
+          if (inv.status === "paid") {
+            totalRevenue += inv.amount_paid;
+          }
+        }
+      } catch (err) {
+        console.error(`Error fetching invoices for user ${user._id}:`, err);
+      }
+    }
+
+    // Sort by date descending
+    allInvoices.sort((a, b) => b.date - a.date);
+
+    res.json({ invoices: allInvoices, totalRevenue });
+  } catch (error) {
+    console.error("Error fetching admin invoices:", error);
+    res.json({ invoices: [], totalRevenue: 0 });
+  }
+});
 
 // Dashboard stats
 router.get("/analytics/stats", async (req: AuthRequest, res: Response) => {
@@ -278,10 +484,10 @@ router.get("/analytics/stats", async (req: AuthRequest, res: Response) => {
       db.collection("user").countDocuments({}),
       db.collection("user").countDocuments({ role: "candidate" }),
       db.collection("user").countDocuments({ role: "employer" }),
-      db.collection("job").countDocuments({}),
-      db.collection("job").countDocuments({ status: "pending" }),
-      db.collection("job").countDocuments({ status: "approved" }),
-      db.collection("job").countDocuments({ status: "rejected" }),
+      db.collection("jobs").countDocuments({}),
+      db.collection("jobs").countDocuments({ status: "pending" }),
+      db.collection("jobs").countDocuments({ status: "approved" }),
+      db.collection("jobs").countDocuments({ status: "rejected" }),
       db.collection("user").countDocuments({
         "subscription.plan": { $in: ["pro", "business"] },
         "subscription.status": "active",
@@ -359,7 +565,7 @@ router.get("/analytics/jobs-over-time", async (req: AuthRequest, res: Response) 
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-    const result = await db.collection("job").aggregate([
+    const result = await db.collection("jobs").aggregate([
       { $match: { createdAt: { $gte: twelveMonthsAgo } } },
       {
         $group: {
@@ -395,7 +601,7 @@ router.get("/analytics/categories", async (req: AuthRequest, res: Response) => {
     const db = mongoose.connection.db;
     if (!db) return res.status(500).json({ error: "Database not connected" });
 
-    const result = await db.collection("job").aggregate([
+    const result = await db.collection("jobs").aggregate([
       { $match: { status: "approved" } },
       { $group: { _id: "$category", count: { $sum: 1 } } },
       { $sort: { count: -1 } },

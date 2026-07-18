@@ -62,14 +62,12 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     let sortOption: any = { createdAt: -1 };
-    if (sort === "salary") {
-      sortOption = { salary: -1 };
-    } else if (sort === "relevance") {
+    if (sort === "relevance") {
       sortOption = { isFeatured: -1, createdAt: -1 };
     }
 
-    const pageNum = Math.max(1, parseInt(page as string, 10));
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 12));
     const skip = (pageNum - 1) * pageSize;
 
     const [jobs, total] = await Promise.all([
@@ -238,6 +236,39 @@ router.delete("/:id", isAuthenticated, hasRole(["employer"]), async (req: AuthRe
   }
 });
 
+// Get candidate's own applications
+router.get("/my-applications", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { page = "1", limit = "10", status } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page as string, 10));
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter: any = { candidate: userId };
+    if (status && status !== "all") filter.status = status;
+
+    const [applications, total] = await Promise.all([
+      Application.find(filter)
+        .populate({ path: "job", populate: { path: "postedBy", select: "name companyName companyLogo" } })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Application.countDocuments(filter),
+    ]);
+
+    res.json({
+      applications,
+      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+    });
+  } catch (error) {
+    console.error("Error fetching applications:", error);
+    res.status(500).json({ error: "Failed to fetch applications" });
+  }
+});
+
 // Get single job (public)
 router.get("/:id", async (req: Request, res: Response) => {
   try {
@@ -278,6 +309,78 @@ router.get("/:id/related", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching related jobs:", error);
     res.status(500).json({ error: "Failed to fetch related jobs" });
+  }
+});
+
+// Apply to a job (candidate only)
+router.post("/:id/apply", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { coverLetter } = req.body;
+    const jobId = req.params.id;
+    const userId = req.user!.id;
+
+    const job = await Job.findById(jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    const existing = await Application.findOne({ job: jobId, candidate: userId });
+    if (existing) return res.status(400).json({ error: "You have already applied to this job" });
+
+    const application = await Application.create({
+      job: jobId,
+      candidate: userId,
+      coverLetter: coverLetter || "",
+      status: "pending",
+    });
+
+    res.status(201).json({ success: true, application });
+  } catch (error: any) {
+    console.error("Error applying to job:", error);
+    res.status(500).json({ error: "Failed to apply" });
+  }
+});
+
+// Get applicants for a job (employer only, own jobs)
+router.get("/:id/applicants", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
+  try {
+    const job = await Job.findById(req.params.id);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    if (job.postedBy.toString() !== req.user!.id) return res.status(403).json({ error: "Not authorized" });
+
+    const applications = await Application.find({ job: req.params.id })
+      .populate("candidate", "name email skills experience resumeUrl")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ applications });
+  } catch (error) {
+    console.error("Error fetching applicants:", error);
+    res.status(500).json({ error: "Failed to fetch applicants" });
+  }
+});
+
+// Update application status (employer only)
+router.put("/:jobId/applications/:appId", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { status } = req.body;
+    if (!status || !["pending", "reviewed", "accepted", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const job = await Job.findById(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    if (job.postedBy.toString() !== req.user!.id) return res.status(403).json({ error: "Not authorized" });
+
+    const application = await Application.findByIdAndUpdate(
+      req.params.appId,
+      { status },
+      { new: true }
+    );
+
+    if (!application) return res.status(404).json({ error: "Application not found" });
+    res.json({ success: true, application });
+  } catch (error) {
+    console.error("Error updating application:", error);
+    res.status(500).json({ error: "Failed to update application" });
   }
 });
 

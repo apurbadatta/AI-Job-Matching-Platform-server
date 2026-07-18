@@ -11,16 +11,24 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "All fields are required" });
     }
 
+    if (typeof name !== "string" || typeof email !== "string" || typeof subject !== "string" || typeof message !== "string") {
+      return res.status(400).json({ error: "Invalid field types" });
+    }
+
+    if (name.length > 100 || subject.length > 200 || message.length > 5000) {
+      return res.status(400).json({ error: "Input too long" });
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: "Invalid email address" });
     }
 
     const contactMessage = await ContactMessage.create({
-      name,
-      email,
-      subject,
-      message,
+      name: name.trim(),
+      email: email.trim(),
+      subject: subject.trim(),
+      message: message.trim(),
     });
 
     res.status(201).json({

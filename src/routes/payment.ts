@@ -301,6 +301,54 @@ router.post("/cancel-subscription", isAuthenticated, async (req: AuthRequest, re
   }
 });
 
+// Get invoices
+router.get("/invoices", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!stripe) {
+      return res.json({ invoices: [] });
+    }
+
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ error: "Database not connected" });
+    }
+
+    const user = await db.collection("user").findOne({ _id: toObjectId(req.user!.id) });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const subscription = (user as any).subscription || {};
+    const customerId = subscription.stripeCustomerId;
+
+    if (!customerId) {
+      return res.json({ invoices: [] });
+    }
+
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit: 20,
+    });
+
+    const formatted = invoices.data.map((inv) => ({
+      id: inv.id,
+      number: inv.number,
+      status: inv.status,
+      amount: inv.amount_paid,
+      currency: inv.currency,
+      date: inv.created,
+      invoiceUrl: inv.hosted_invoice_url,
+      pdfUrl: inv.invoice_pdf,
+      description: inv.description || "Subscription payment",
+    }));
+
+    res.json({ invoices: formatted });
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    res.json({ invoices: [] });
+  }
+});
+
 // Create billing portal session (for managing payment methods)
 router.post("/create-portal-session", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
@@ -329,7 +377,7 @@ router.post("/create-portal-session", isAuthenticated, async (req: AuthRequest, 
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${clientUrl}/dashboard`,
+      return_url: `${clientUrl}/jobs/manage/payment`,
     });
 
     res.json({ url: session.url });
