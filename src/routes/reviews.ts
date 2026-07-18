@@ -4,25 +4,29 @@ import { isAuthenticated, AuthRequest } from "../middleware/auth";
 
 const router = Router();
 
-// Get reviews for a company
-router.get("/company/:companyId", async (req: Request, res: Response) => {
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Get reviews for a company (by employer user ID)
+router.get("/company/:employerId", async (req: Request, res: Response) => {
   try {
     const { page = "1", limit = "10" } = req.query;
-    const pageNum = Math.max(1, parseInt(page as string, 10));
-    const pageSize = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const pageSize = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 10));
     const skip = (pageNum - 1) * pageSize;
 
     const [reviews, total, stats] = await Promise.all([
-      Review.find({ companyId: req.params.companyId })
-        .populate("userId", "name profileImage")
-        .populate("jobId", "title")
+      Review.find({ employer: req.params.employerId })
+        .populate("candidate", "name")
+        .populate("job", "title")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .lean(),
-      Review.countDocuments({ companyId: req.params.companyId }),
+      Review.countDocuments({ employer: req.params.employerId }),
       Review.aggregate([
-        { $match: { companyId: req.params.companyId as any } },
+        { $match: { employer: req.params.employerId as any } },
         {
           $group: {
             _id: null,
@@ -37,7 +41,7 @@ router.get("/company/:companyId", async (req: Request, res: Response) => {
     const ratingDistribution = [0, 0, 0, 0, 0];
     if (stats.length > 0) {
       stats[0].ratingCounts.forEach((r: number) => {
-        ratingDistribution[r - 1]++;
+        if (r >= 1 && r <= 5) ratingDistribution[r - 1]++;
       });
     }
 
@@ -59,10 +63,10 @@ router.get("/company/:companyId", async (req: Request, res: Response) => {
 // Create a review (authenticated)
 router.post("/", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const { jobId, companyId, rating, title, content, pros, cons, employmentStatus } = req.body;
+    const { jobId, employerId, rating, comment } = req.body;
 
-    if (!jobId || !companyId || !rating || !title || !content || !employmentStatus) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!jobId || !employerId || !rating || !comment) {
+      return res.status(400).json({ error: "jobId, employerId, rating, and comment are required" });
     }
 
     if (rating < 1 || rating > 5) {
@@ -70,8 +74,8 @@ router.post("/", isAuthenticated, async (req: AuthRequest, res: Response) => {
     }
 
     const existingReview = await Review.findOne({
-      userId: req.user!.id,
-      jobId,
+      candidate: req.user!.id,
+      job: jobId,
     });
 
     if (existingReview) {
@@ -79,15 +83,11 @@ router.post("/", isAuthenticated, async (req: AuthRequest, res: Response) => {
     }
 
     const review = await Review.create({
-      jobId,
-      userId: req.user!.id,
-      companyId,
+      job: jobId,
+      candidate: req.user!.id,
+      employer: employerId,
       rating,
-      title,
-      content,
-      pros: pros || "",
-      cons: cons || "",
-      employmentStatus,
+      comment,
     });
 
     res.status(201).json(review);

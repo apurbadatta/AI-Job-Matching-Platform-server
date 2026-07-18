@@ -11,6 +11,7 @@ if (process.env.MONGO_URI) {
 }
 
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL || process.env.CLIENT_URL || "http://localhost:5000",
   database: db ? mongodbAdapter(db, { client }) : undefined,
   emailAndPassword: {
     enabled: true,
@@ -22,8 +23,8 @@ export const auth = betterAuth({
   },
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     },
   },
   user: {

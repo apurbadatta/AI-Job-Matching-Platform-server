@@ -4,10 +4,13 @@
   "description": "JobPilot AI backend server",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "dev": "nodemon --exec tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed": "ts-node src/seed/demo-user.ts"
+    "postinstall": "tsc",
+    "seed": "tsx src/seed/demo-user.ts",
+    "seed:admin": "tsx src/seed/admin-user.ts",
+    "seed:blog": "tsx src/seed/blog.ts"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +22,7 @@
     "@types/node": "^26.1.1",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.1",
     "typescript": "^7.0.2"
   },
   "dependencies": {
@@ -28,6 +32,7 @@
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.15.1"
+    "mongoose": "^8.15.1",
+    "stripe": "^22.3.2"
   }
 }

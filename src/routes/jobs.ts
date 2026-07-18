@@ -6,6 +6,10 @@ import { isAuthenticated, AuthRequest, hasRole } from "../middleware/auth";
 
 const router = Router();
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // Static routes first (before /:id)
 router.get("/categories", async (_req: Request, res: Response) => {
   try {
@@ -41,16 +45,16 @@ router.get("/", async (req: Request, res: Response) => {
     const filter: any = { status: "approved" };
 
     if (search && typeof search === "string" && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       filter.$or = [{ title: regex }, { shortDescription: regex }];
     }
 
     if (category && typeof category === "string" && category.trim()) {
-      filter.category = new RegExp(`^${category.trim()}$`, "i");
+      filter.category = category.trim();
     }
 
     if (location && typeof location === "string" && location.trim()) {
-      filter.location = new RegExp(location.trim(), "i");
+      filter.location = new RegExp(escapeRegex(location.trim()), "i");
     }
 
     if (jobType && typeof jobType === "string" && jobType.trim()) {
@@ -118,8 +122,8 @@ router.get("/employer", isAuthenticated, hasRole(["employer"]), async (req: Auth
     // Get applicant counts for each job
     const jobIds = jobs.map((j) => j._id);
     const applicantCounts = await Application.aggregate([
-      { $match: { jobId: { $in: jobIds } } },
-      { $group: { _id: "$jobId", count: { $sum: 1 } } },
+      { $match: { job: { $in: jobIds } } },
+      { $group: { _id: "$job", count: { $sum: 1 } } },
     ]);
 
     const countMap = new Map(applicantCounts.map((a) => [a._id.toString(), a.count]));
