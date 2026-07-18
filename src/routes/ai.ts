@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { isAuthenticated, AuthRequest } from "../middleware/auth";
+import { isAuthenticated, AuthRequest, hasRole } from "../middleware/auth";
 import { User } from "../models/User";
 import { Job } from "../models/Job";
 import { Interaction } from "../models/Interaction";
@@ -12,8 +12,8 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Generate AI job recommendations
-router.post("/recommendations", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Generate AI job recommendations (candidate only)
+router.post("/recommendations", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
   try {
     const { preferredCategory, preferredLocation } = req.body;
     const userId = req.user!.id;
@@ -253,8 +253,8 @@ Return format: [{"jobId": "...", "score": 85, "reason": "..."}, ...]`;
 
 // Track user interaction
 
-// Track user interaction
-router.post("/interactions", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Track user interaction (candidate only)
+router.post("/interactions", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
   try {
     const { jobId, type } = req.body;
     const userId = req.user!.id;
@@ -275,8 +275,8 @@ router.post("/interactions", isAuthenticated, async (req: AuthRequest, res: Resp
   }
 });
 
-// Get user's saved jobs
-router.get("/saved-jobs", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Get user's saved jobs (candidate only)
+router.get("/saved-jobs", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -302,8 +302,8 @@ router.get("/saved-jobs", isAuthenticated, async (req: AuthRequest, res: Respons
   }
 });
 
-// Generate cover letter
-router.post("/cover-letter", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Generate cover letter (candidate only)
+router.post("/cover-letter", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
   try {
     const { jobId, tone = "formal", length = "medium" } = req.body;
     const userId = req.user!.id;
@@ -485,8 +485,8 @@ ${userName}`;
   }
 });
 
-// Get cover letter history
-router.get("/cover-letters", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Get cover letter history (candidate only)
+router.get("/cover-letters", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { page = "1", limit = "10" } = req.query;
@@ -520,8 +520,8 @@ router.get("/cover-letters", isAuthenticated, async (req: AuthRequest, res: Resp
   }
 });
 
-// Generate job description
-router.post("/generate-description", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Generate job description (employer only)
+router.post("/generate-description", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
   try {
     const { bulletPoints, jobTitle, category, companyName } = req.body;
 

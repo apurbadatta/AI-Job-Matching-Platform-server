@@ -1,5 +1,5 @@
 import express, { Router, Request, Response } from "express";
-import { isAuthenticated, AuthRequest } from "../middleware/auth";
+import { isAuthenticated, AuthRequest, hasRole } from "../middleware/auth";
 import { stripe, PRICE_IDS, PLAN_DETAILS, PlanType } from "../lib/stripe";
 import mongoose from "mongoose";
 import Stripe from "stripe";
@@ -8,8 +8,8 @@ const router = Router();
 
 const toObjectId = (id: string) => new mongoose.Types.ObjectId(id);
 
-// Get subscription status
-router.get("/subscription-status", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Get subscription status (employer only)
+router.get("/subscription-status", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
   try {
     const db = mongoose.connection.db;
     if (!db) {
@@ -44,8 +44,8 @@ router.get("/subscription-status", isAuthenticated, async (req: AuthRequest, res
   }
 });
 
-// Create checkout session
-router.post("/create-checkout-session", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Create checkout session (employer only)
+router.post("/create-checkout-session", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
   try {
     if (!stripe) {
       return res.status(503).json({ error: "Stripe is not configured. Add STRIPE_SECRET_KEY to environment variables." });
@@ -252,8 +252,8 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req: R
   }
 });
 
-// Cancel subscription
-router.post("/cancel-subscription", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Cancel subscription (employer only)
+router.post("/cancel-subscription", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
   try {
     if (!stripe) {
       return res.status(503).json({ error: "Stripe is not configured" });
@@ -301,8 +301,8 @@ router.post("/cancel-subscription", isAuthenticated, async (req: AuthRequest, re
   }
 });
 
-// Get invoices
-router.get("/invoices", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Get invoices (employer only)
+router.get("/invoices", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
   try {
     if (!stripe) {
       return res.json({ invoices: [] });
@@ -349,8 +349,8 @@ router.get("/invoices", isAuthenticated, async (req: AuthRequest, res: Response)
   }
 });
 
-// Create billing portal session (for managing payment methods)
-router.post("/create-portal-session", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Create billing portal session (employer only)
+router.post("/create-portal-session", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest, res: Response) => {
   try {
     if (!stripe) {
       return res.status(503).json({ error: "Stripe is not configured" });

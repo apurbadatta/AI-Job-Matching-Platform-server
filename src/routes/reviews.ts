@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
 import { Review } from "../models/Review";
-import { isAuthenticated, AuthRequest } from "../middleware/auth";
+import { isAuthenticated, AuthRequest, hasRole } from "../middleware/auth";
 
 const router = Router();
 
@@ -61,8 +61,8 @@ router.get("/company/:employerId", async (req: Request, res: Response) => {
   }
 });
 
-// Create a review (authenticated)
-router.post("/", isAuthenticated, async (req: AuthRequest, res: Response) => {
+// Create a review (candidate only)
+router.post("/", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: Response) => {
   try {
     const { jobId, employerId, rating, comment } = req.body;
 

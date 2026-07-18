@@ -85,7 +85,7 @@ app.get("/api/auth/session", async (req, res) => {
 });
 
 // Profile update
-import { isAuthenticated, AuthRequest } from "./middleware/auth";
+import { isAuthenticated, hasRole, AuthRequest } from "./middleware/auth";
 import { User } from "./models/User";
 
 app.put("/api/profile", isAuthenticated, async (req: AuthRequest, res: express.Response) => {
@@ -109,8 +109,8 @@ app.put("/api/profile", isAuthenticated, async (req: AuthRequest, res: express.R
   }
 });
 
-// Employer setup after registration (sets role + companyName)
-app.post("/api/auth/setup-employer", isAuthenticated, async (req: AuthRequest, res: express.Response) => {
+// Employer setup after registration (candidate only — sets role + companyName)
+app.post("/api/auth/setup-employer", isAuthenticated, hasRole(["candidate"]), async (req: AuthRequest, res: express.Response) => {
   try {
     const { companyName } = req.body;
     if (!companyName || typeof companyName !== "string" || !companyName.trim()) {
