@@ -12,7 +12,7 @@ export const connectDB = async () => {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
-    console.log(`MongoDB connected: ${conn.connection.host}`);
+    console.log(`MongoDB connected: ${conn.connection.host} | Database: ${conn.connection.name}`);
   } catch (error: any) {
     console.error("MongoDB connection error:", error.message || error);
   }

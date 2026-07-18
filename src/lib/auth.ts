@@ -1,9 +1,13 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { MongoClient, Db } from "mongodb";
+import dotenv from "dotenv";
+import path from "path";
 
-let client: MongoClient;
-let db: Db;
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
+let client: MongoClient | undefined;
+let db: Db | undefined;
 
 if (process.env.MONGO_URI) {
   client = new MongoClient(process.env.MONGO_URI);
@@ -12,14 +16,10 @@ if (process.env.MONGO_URI) {
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || process.env.CLIENT_URL || "http://localhost:5000",
-  database: db ? mongodbAdapter(db, { client }) : undefined,
+  database: db ? mongodbAdapter(db, { client: client! }) : undefined,
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
-    password: {
-      minPasswordLength: 8,
-      maxPasswordLength: 128,
-    },
   },
   socialProviders: {
     google: {

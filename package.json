@@ -10,7 +10,9 @@
     "postinstall": "tsc",
     "seed": "tsx src/seed/demo-user.ts",
     "seed:admin": "tsx src/seed/admin-user.ts",
-    "seed:blog": "tsx src/seed/blog.ts"
+    "seed:blog": "tsx src/seed/blog.ts",
+    "seed:demo-data": "tsx src/seed/demo-data.ts",
+    "seed:all": "npm run seed:admin && npm run seed && npm run seed:blog && npm run seed:demo-data"
   },
   "keywords": [],
   "author": "",

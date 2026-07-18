@@ -20,7 +20,7 @@ router.post("/recommendations", isAuthenticated, async (req: AuthRequest, res: R
     }
 
     // Fetch candidate profile
-    const user = await User.findById(userId).lean();
+    const user: any = await User.findById(userId).lean();
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -132,7 +132,7 @@ Return format: [{"jobId": "...", "score": 85, "reason": "..."}, ...]`;
       return res.status(500).json({ error: "Failed to generate recommendations" });
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!generatedText) {
@@ -177,7 +177,7 @@ Return format: [{"jobId": "...", "score": 85, "reason": "..."}, ...]`;
       .populate("postedBy", "name companyName companyLogo")
       .lean();
 
-    const jobMap = new Map(fullJobs.map((j) => [j._id.toString(), j]));
+    const jobMap = new Map(fullJobs.map((j: any) => [j._id.toString(), j]));
 
     const enrichedRecommendations = recommendations
       .slice(0, 10)
@@ -270,13 +270,13 @@ router.post("/cover-letter", isAuthenticated, async (req: AuthRequest, res: Resp
     }
 
     // Fetch candidate profile
-    const user = await User.findById(userId).lean();
+    const user: any = await User.findById(userId).lean();
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
     // Fetch job details
-    const job = await Job.findById(jobId)
+    const job: any = await Job.findById(jobId)
       .populate("postedBy", "name companyName")
       .lean();
 
@@ -356,7 +356,7 @@ Return ONLY the cover letter text, no additional commentary or headers.`;
       return res.status(500).json({ error: "Failed to generate cover letter" });
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!generatedText) {
@@ -475,7 +475,7 @@ Return ONLY the job description text, no additional commentary.`;
       return res.status(500).json({ error: "Failed to generate description" });
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!generatedText) {

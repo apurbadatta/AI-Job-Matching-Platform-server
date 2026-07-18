@@ -15,16 +15,16 @@ const PORT = process.env.PORT || 5000;
 // Connect to MongoDB
 connectDB();
 
-// Better Auth handler - must come before express.json()
-app.all("/api/auth/{*path}", toNodeHandler(auth));
-
-// CORS for regular routes
+// CORS - must come before Better Auth handler
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:3000",
     credentials: true,
   })
 );
+
+// Better Auth handler - must come before express.json()
+app.all("/api/auth/{*path}", toNodeHandler(auth));
 
 // JSON parsing for non-auth, non-webhook routes
 app.use(express.json({ limit: "10mb" }));

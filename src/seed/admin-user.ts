@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import dns from "dns";
+import { ObjectId } from "mongodb";
 import { auth } from "../lib/auth";
+
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 dotenv.config();
 
@@ -23,9 +27,8 @@ async function seedAdmin() {
     console.log("Connected to MongoDB");
 
     // Check if admin already exists
-    const existingAdmin = await auth.api.findUserByEmail({
-      email: ADMIN_USER.email,
-    });
+    const db0 = mongoose.connection.db;
+    const existingAdmin = await db0?.collection("user").findOne({ email: ADMIN_USER.email });
 
     if (existingAdmin) {
       console.log("Admin user already exists:", ADMIN_USER.email);
@@ -49,10 +52,9 @@ async function seedAdmin() {
     console.log("\nUser ID:", result.user.id);
 
     // Update role to admin
-    const db = mongoose.connection.db;
-    if (db) {
-      await db.collection("user").updateOne(
-        { _id: result.user.id },
+    if (db0) {
+      await db0.collection("user").updateOne(
+        { _id: new ObjectId(result.user.id) },
         { $set: { role: "admin" } }
       );
       console.log("Role set to 'admin'");

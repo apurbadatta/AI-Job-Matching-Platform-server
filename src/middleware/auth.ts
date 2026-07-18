@@ -29,7 +29,7 @@ export const isAuthenticated = async (
       return res.status(401).json({ error: "Unauthorized. Please log in." });
     }
 
-    req.user = session.user as AuthUser;
+    req.user = session.user as unknown as AuthUser;
     req.session = session.session;
     next();
   } catch (error) {

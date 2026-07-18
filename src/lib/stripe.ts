@@ -1,8 +1,8 @@
 import Stripe from "stripe";
 
-export const stripe = process.env.STRIPE_SECRET_KEY
+export const stripe: Stripe | null = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { typescript: true })
-  : (null as unknown as Stripe);
+  : null;
 
 // Price IDs - these will be created once in Stripe Dashboard or via script
 // For TEST MODE, create these in https://dashboard.stripe.com/test/dashboard

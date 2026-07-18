@@ -120,14 +120,14 @@ router.get("/employer", isAuthenticated, hasRole(["employer"]), async (req: Auth
     ]);
 
     // Get applicant counts for each job
-    const jobIds = jobs.map((j) => j._id);
+    const jobIds = jobs.map((j: any) => j._id);
     const applicantCounts = await Application.aggregate([
       { $match: { job: { $in: jobIds } } },
       { $group: { _id: "$job", count: { $sum: 1 } } },
     ]);
 
-    const countMap = new Map(applicantCounts.map((a) => [a._id.toString(), a.count]));
-    const jobsWithCounts = jobs.map((job) => ({
+    const countMap = new Map(applicantCounts.map((a: any) => [a._id.toString(), a.count]));
+    const jobsWithCounts = jobs.map((job: any) => ({
       ...job,
       applicantsCount: countMap.get(job._id.toString()) || 0,
     }));
@@ -168,14 +168,14 @@ router.post("/", isAuthenticated, hasRole(["employer"]), async (req: AuthRequest
     }
 
     // Check subscription limits
-    const user = await User.findById(req.user!.id).lean();
+    const user: any = await User.findById(req.user!.id).lean();
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const isPaidPlan = user.subscription.plan === "pro" || user.subscription.plan === "business";
+    const isPaidPlan = user.subscription?.plan === "pro" || user.subscription?.plan === "business";
     const isSubscriptionActive =
-      user.subscription.status === "active" || user.subscription.status === "trialing";
+      user.subscription?.status === "active" || user.subscription?.status === "trialing";
 
     if (!isPaidPlan || !isSubscriptionActive) {
       // Free plan - check job post limit
@@ -259,7 +259,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 // Get related jobs (same category, exclude current)
 router.get("/:id/related", async (req: Request, res: Response) => {
   try {
-    const currentJob = await Job.findById(req.params.id).lean();
+    const currentJob: any = await Job.findById(req.params.id).lean();
     if (!currentJob) {
       return res.status(404).json({ error: "Job not found" });
     }

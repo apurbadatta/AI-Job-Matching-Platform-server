@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import dns from "dns";
+import { ObjectId } from "mongodb";
 import { auth } from "../lib/auth";
+
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 dotenv.config();
 
@@ -23,10 +27,9 @@ async function seed() {
     await mongoose.connect(mongoUri);
     console.log("Connected to MongoDB");
 
-    // Check if demo user already exists via Better Auth
-    const existingUser = await auth.api.findUserByEmail({
-      email: DEMO_USER.email,
-    });
+    // Check if demo user already exists
+    const db0 = mongoose.connection.db;
+    const existingUser = await db0?.collection("user").findOne({ email: DEMO_USER.email });
 
     if (existingUser) {
       console.log("Demo user already exists:", DEMO_USER.email);
@@ -49,12 +52,10 @@ async function seed() {
     console.log("Role:", DEMO_USER.role);
     console.log("\nUser ID:", result.user.id);
 
-    // Update role to candidate (Better Auth sets default, we need to ensure it's correct)
-    // The role is set via additionalFields defaultValue, but we can also use the DB directly
-    const db = mongoose.connection.db;
-    if (db) {
-      await db.collection("user").updateOne(
-        { _id: result.user.id },
+    // Update role to candidate
+    if (db0) {
+      await db0.collection("user").updateOne(
+        { _id: new ObjectId(result.user.id) },
         { $set: { role: "candidate" } }
       );
       console.log("Role confirmed as 'candidate'");
